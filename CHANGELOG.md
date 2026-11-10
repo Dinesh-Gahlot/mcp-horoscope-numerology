@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0] - 2026-11-09
+
+### Added
+
+**New tool: `divine_search_location` (DV-648).** Wraps the Location API, `POST https://geolocation.divineapi.com/location` (parent ticket DV-614; docs: developers.divineapi.com/geo-location-api/location-api). It takes `place` (at least 3 characters after trimming, checked before any call) and returns up to 10 matches, largest population first, with `latitude`, `longitude`, `timezone` (IANA name), `timezone_value` and more, plus the GeoNames attribution. The server instructions now point to it for getting `lat`, `lon` and a timezone from a place name.
+
+`timezone_value` is the zone's offset **today**, so for a birth date in a zone with summer time it can be wrong by an hour (New York: -5 now, -4 on 1990-07-15, verified live). The tool description says so and tells the model to work out the birth-date offset from the IANA timezone.
+
+The Location API reports errors with real HTTP status codes and its own message and details. `_call_divine_api` gains an optional `on_http_error` hook, and the tool uses a Location-specific handler; every other tool (including the PDF tools' own HTTP call) keeps the generic `_handle_http_error`. Same implementation as the Indian and Western MCPs. Tool count: 64 -> 65.
+
 ## [1.5.1] - 2026-09-17
 
 ### Fixed

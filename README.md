@@ -3,7 +3,7 @@
 Official MCP server by Divine API for horoscopes, tarot readings, numerology,
 love calculators, lifestyle insights, and PDF reports.
 
-Provides **64 tools** across these families:
+Provides **65 tools** across these families:
 
 | Family | Tools | Host |
 |--------|-------|------|
@@ -15,6 +15,7 @@ Provides **64 tools** across these families:
 | Calculators (FLAMES, love) | 2 | astroapi-7 |
 | Lifestyle (gifts, beauty, fashion) | 3 | astroapi-7 |
 | PDF reports (Vedic, Western, numerology, Reports V2) | 14 | pdf |
+| Location (place search) | 1 | geolocation |
 
 ## Setup
 
