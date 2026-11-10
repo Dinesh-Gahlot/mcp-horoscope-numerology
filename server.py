@@ -644,6 +644,31 @@ class PDFMatchmakingInput(BaseModel):
     company_mobile: str = Field(default="", description="Optional company phone for branding on PDF")
 
 
+_FRONT_IMAGE_DESC = (
+    "Optional URL of a cover image for the first page (PNG or JPEG). "
+    "Needed for hide_frontpage_details to have any effect."
+)
+_HIDE_FRONTPAGE_DESC = (
+    "Optional, default false. True shows only front_image on the first page, without the report "
+    "name, client details and 'Produced by' block that would otherwise be printed over it. "
+    "Requires front_image."
+)
+
+
+class VedicPDFReportInput(PDFReportInput):
+    """PDFReportInput plus the cover-page options of the Vedic V1 PDF reports (DV-528)."""
+
+    front_image: str = Field(default="", description=_FRONT_IMAGE_DESC)
+    hide_frontpage_details: bool = Field(default=False, description=_HIDE_FRONTPAGE_DESC)
+
+
+class VedicPDFMatchmakingInput(PDFMatchmakingInput):
+    """PDFMatchmakingInput plus the cover-page options of the Vedic V1 PDF reports (DV-528)."""
+
+    front_image: str = Field(default="", description=_FRONT_IMAGE_DESC)
+    hide_frontpage_details: bool = Field(default=False, description=_HIDE_FRONTPAGE_DESC)
+
+
 class NatalReportInput(PDFReportInput):
     """Input for the Western natal PDF report. Adds the report_code and theme selectors the API requires."""
 
@@ -1002,6 +1027,26 @@ def _natal_report_payload(params: NatalReportInput) -> dict:
     payload = _pdf_report_payload(params)
     payload["report_code"] = params.report_code
     payload["theme"] = params.theme
+    return payload
+
+
+def _check_cover(front_image: str, hide_frontpage_details: bool) -> None:
+    """hide_frontpage_details only hides details printed over a cover image, so it needs one.
+
+    Reports V2 rejects the combination with a 400; the Vedic V1 reports accept it but
+    leave the page unchanged, so both are checked here before any call.
+    """
+    if hide_frontpage_details and not (front_image or "").strip():
+        raise ToolError("Error: hide_frontpage_details requires front_image (the cover image to show on its own).")
+
+
+def _apply_vedic_cover(payload: dict, params) -> dict:
+    """Add front_image / hide_frontpage_details to a Vedic V1 PDF payload. V1 takes the flag as 0/1."""
+    _check_cover(params.front_image, params.hide_frontpage_details)
+    if params.front_image:
+        payload["front_image"] = params.front_image
+    if params.hide_frontpage_details:
+        payload["hide_frontpage_details"] = "1"
     return payload
 
 
@@ -1709,107 +1754,134 @@ async def divine_astro_chic_picks(
 
 
 @mcp.tool(name="divine_pdf_kundali_sampoorna", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_kundali_sampoorna(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_kundali_sampoorna(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a comprehensive Sampoorna Kundali PDF report.
 
     Returns a complete Vedic birth chart report including planetary positions,
     dasha periods, yogas, doshas, and detailed life predictions.
     Supports optional company branding on the PDF.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/kundali-sampoorna", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/kundali-sampoorna", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_kundali_ananta", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_kundali_ananta(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_kundali_ananta(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate an Ananta Kundali PDF report with extended analysis.
 
     Returns a detailed Vedic astrology report with extended planetary analysis,
     divisional charts, and in-depth dasha predictions in PDF format.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/kundali-ananta", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/kundali-ananta", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_kundali_prakash", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_kundali_prakash(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_kundali_prakash(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a Prakash Kundali PDF report with essential analysis.
 
     Returns a concise Vedic astrology report with key planetary positions,
     basic dasha analysis, and essential life predictions in PDF format.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/kundali-prakash", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/kundali-prakash", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_match_making", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_match_making(params: PDFMatchmakingInput, ctx: Context) -> str:
+async def divine_pdf_match_making(params: VedicPDFMatchmakingInput, ctx: Context) -> str:
     """Generate a Vedic matchmaking (Kundali Milan) PDF report.
 
     Returns a comprehensive compatibility report for two individuals including
     Ashtakoota matching, Mangal Dosha analysis, and marriage compatibility score.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/match-making", _pdf_matchmaking_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/match-making", _apply_vedic_cover(_pdf_matchmaking_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_government_job", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_government_job(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_government_job(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a government job prospects PDF report based on Vedic astrology.
 
     Returns an astrological analysis of government job potential, competitive exam
     success probability, and favorable periods for public sector employment.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/government-job-report", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/government-job-report", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_foreign_travel", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_foreign_travel(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_foreign_travel(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a foreign travel and settlement prospects PDF report.
 
     Returns an astrological analysis of overseas travel potential,
     immigration prospects, and favorable periods for foreign settlement.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/foreign-travel-settlement", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/foreign-travel-settlement", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_vedic_5year", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_vedic_5year(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_vedic_5year(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a 5-year Vedic yearly prediction PDF report.
 
     Returns year-by-year predictions for the next 5 years covering career,
     relationships, health, finances, and major life events.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/vedic-yearly-prediction-5-year", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/vedic-yearly-prediction-5-year", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_vedic_10year", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_vedic_10year(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_vedic_10year(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a 10-year Vedic yearly prediction PDF report.
 
     Returns year-by-year predictions for the next 10 years covering career,
     relationships, health, finances, and major life events.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/vedic-yearly-prediction-10-year", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/vedic-yearly-prediction-10-year", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_pdf_vedic_15year", annotations=TOOL_ANNOTATIONS)
-async def divine_pdf_vedic_15year(params: PDFReportInput, ctx: Context) -> str:
+async def divine_pdf_vedic_15year(params: VedicPDFReportInput, ctx: Context) -> str:
     """Generate a 15-year Vedic yearly prediction PDF report.
 
     Returns year-by-year predictions for the next 15 years covering career,
     relationships, health, finances, and major life events.
+
+    Cover page: pass front_image for a custom cover, and hide_frontpage_details=true to show
+    only that image, without the report name and client details printed over it.
     """
     api_key, auth_token = _get_credentials(ctx)
-    return await _call_divine_api("/indian-api/v2/vedic-yearly-prediction-15-year", _pdf_report_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
+    return await _call_divine_api("/indian-api/v2/vedic-yearly-prediction-15-year", _apply_vedic_cover(_pdf_report_payload(params), params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
 # ══════════════════════════════════════════════
-# PDF REPORTS — WESTERN & NUMEROLOGY (5) — pdf.divineapi.com
+# PDF REPORTS — WESTERN & NUMEROLOGY (6) — pdf.divineapi.com
 # ══════════════════════════════════════════════
 
 
@@ -1865,14 +1937,34 @@ async def divine_pdf_numerology_report(params: NumerologyPDFInput, ctx: Context)
     return await _call_divine_api("/numerology/v2/report", _numerology_pdf_payload(params), API_HOST_PDF, api_key=api_key, auth_token=auth_token)
 
 
-async def _call_reports_v2(payload: dict, api_key: str, auth_token: str) -> str:
+def _reports_v2_http_error(e: httpx.HTTPStatusError) -> str:
+    """Error text for Reports V2, whose errors are {"error": "..."}: surface that text.
+
+    Its 401 "Invalid Bearer token" means the key is not a PDF account's, which the
+    generic _handle_http_error wording ("check your DIVINE_API_KEY") would hide.
+    """
+    try:
+        body = e.response.json()
+    except Exception:
+        return _handle_http_error(e)
+    detail = body.get("error") if isinstance(body, dict) else None
+    if not isinstance(detail, str) or not detail.strip():
+        return _handle_http_error(e)
+    status = e.response.status_code
+    hint = ""
+    if status == 401 and "Invalid Bearer token" in detail:
+        hint = " Reports V2 only accepts DivineAPI PDF accounts: connect with a PDF account's API key and token."
+    return f"Error: Reports V2 returned {status}: {detail.strip().rstrip('.')}.{hint}"
+
+
+async def _call_reports_v2(payload: dict, api_key: str, auth_token: str, path: str = "/api/v1/reports/generate") -> str:
     """POST to the Reports V2 endpoint, which uses a JSON body and an x-api-key header.
 
     Unlike every other Divine API endpoint (form fields + api_key field), Reports V2
     rejects form-encoded requests with 401 'x-api-key header required'
     (verified live 2026-07-08). Raises ToolError on any failure.
     """
-    url = f"{API_HOST_PDF}/api/v1/reports/generate"
+    url = f"{API_HOST_PDF}{path}"
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -1887,7 +1979,7 @@ async def _call_reports_v2(payload: dict, api_key: str, auth_token: str) -> str:
             response.raise_for_status()
             data = response.json()
     except httpx.HTTPStatusError as e:
-        raise ToolError(_handle_http_error(e)) from e
+        raise ToolError(_reports_v2_http_error(e)) from e
     except httpx.TimeoutException as e:
         raise ToolError("Request timed out. The Divine API server may be slow. Please try again.") from e
     except httpx.ConnectError as e:
@@ -1902,7 +1994,7 @@ async def _call_reports_v2(payload: dict, api_key: str, auth_token: str) -> str:
 
 @mcp.tool(name="divine_pdf_reports_v2", annotations=TOOL_ANNOTATIONS)
 async def divine_pdf_reports_v2(
-    report_type: str = Field(..., description="Report type (e.g., 'vedic-career-report', 'vedic-marriage-report', 'western-natal-report', 'numerology-report')"),
+    report_type: str = Field(..., description="Vedic report slug (e.g., 'vedic-life-report', 'vedic-career-report', 'marriage-love-life-report', 'sade-sati-report'). Western reports use divine_pdf_western_reports_v2."),
     full_name: str = Field(..., description="Full name of the person"),
     day: str = Field(..., description="Birth day (e.g., '15')"),
     month: str = Field(..., description="Birth month (e.g., '06')"),
@@ -1922,14 +2014,21 @@ async def divine_pdf_reports_v2(
     company_bio: str = Field(..., description="Company bio printed on the report (required by the API)"),
     footer_text: str = Field(..., description="Footer text printed on the report (required by the API)"),
     logo_url: str = Field(..., description="Logo image URL printed on the report (required by the API)"),
+    front_image: str = Field(default="", description=_FRONT_IMAGE_DESC),
+    hide_frontpage_details: bool = Field(default=False, description=_HIDE_FRONTPAGE_DESC),
     ctx: Context = None,
 ) -> str:
     """Generate a comprehensive PDF report using Divine API Reports V2.
 
-    Supports multiple report types including vedic career, marriage, health,
-    western natal, and numerology reports. All seven branding fields are
-    required by this endpoint. Returns URLs to the generated report
-    (reportId, htmlUrl, pdfUrl, statusUrl).
+    Vedic report types: life, career, health, marriage & love life, wealth,
+    education, child, business partnership, nakshatra, sade sati and the dosha
+    reports. Western reports use divine_pdf_western_reports_v2. All seven
+    branding fields are required by this endpoint. Cover page: pass front_image
+    for a custom cover, and hide_frontpage_details=true to show only that image.
+    Returns URLs to the generated report (reportId, htmlUrl, pdfUrl, statusUrl).
+
+    Needs a DivineAPI PDF-account key and token (Reports V2 only accepts active PDF
+    accounts); a standard API key gets 401 'Invalid Bearer token'.
     """
     api_key, auth_token = _get_credentials(ctx)
     payload = {
@@ -1942,7 +2041,82 @@ async def divine_pdf_reports_v2(
         "company_bio": company_bio, "footer_text": footer_text,
         "logo_url": logo_url,
     }
+    _check_cover(front_image, hide_frontpage_details)
+    if front_image:
+        payload["front_image"] = front_image
+    if hide_frontpage_details:
+        payload["hide_frontpage_details"] = True
     return await _call_reports_v2(payload, api_key, auth_token)
+
+
+_WESTERN_TIERS = {"snapshot", "insight", "advanced", "comprehensive"}
+
+
+@mcp.tool(name="divine_pdf_western_reports_v2", annotations=TOOL_ANNOTATIONS)
+async def divine_pdf_western_reports_v2(
+    report_type: str = Field(..., description="Western report slug (e.g., 'western-natal-blueprint', 'western-love-signature-insight') or a family code (e.g., 'western-inner-moon') with tier"),
+    full_name: str = Field(..., description="Full name of the person"),
+    day: str = Field(..., description="Birth day (e.g., '15')"),
+    month: str = Field(..., description="Birth month (e.g., '06')"),
+    year: str = Field(..., description="Birth year (e.g., '1990')"),
+    hour: str = Field(..., description="Birth hour in 24h format (e.g., '14')"),
+    min: str = Field(..., description="Birth minute (e.g., '30')"),
+    sec: str = Field(default="0", description="Birth second"),
+    gender: str = Field(..., description="Gender: 'male' or 'female'"),
+    place: str = Field(..., description="Birth place (e.g., 'New York')"),
+    lat: str = Field(..., description="Latitude (e.g., '40.7128')"),
+    lon: str = Field(..., description="Longitude (e.g., '-74.0060')"),
+    tzone: str = Field(..., description="Timezone offset in hours at the birth date (e.g., '-4')"),
+    company_name: str = Field(..., description="Company name printed on the report (required by the API)"),
+    company_url: str = Field(..., description="Company URL printed on the report (required by the API)"),
+    company_email: str = Field(..., description="Company email printed on the report (required by the API)"),
+    company_mobile: str = Field(..., description="Company mobile printed on the report (required by the API)"),
+    company_bio: str = Field(..., description="Company bio printed on the report (required by the API)"),
+    footer_text: str = Field(..., description="Footer text printed on the report (required by the API)"),
+    logo_url: str = Field(..., description="Logo image URL printed on the report (required by the API)"),
+    tier: str = Field(default="", description="Optional depth when report_type is a family code: 'snapshot', 'insight', 'advanced' or 'comprehensive' (the API default)"),
+    house_system: str = Field(default="", description="Optional house system (API default 'placidus')"),
+    theme: str = Field(default="", description="Optional named look that sets colours and artwork at once"),
+    lan: str = Field(default="", description="Optional language code (API default 'en')"),
+    front_image: str = Field(default="", description=_FRONT_IMAGE_DESC),
+    hide_frontpage_details: bool = Field(default=False, description=_HIDE_FRONTPAGE_DESC),
+    ctx: Context = None,
+) -> str:
+    """Generate a Western (tropical) astrology PDF report using Divine API Reports V2.
+
+    Uses the Western endpoint, POST /api/v1/western/reports/generate; Vedic slugs go to
+    divine_pdf_reports_v2 instead (each endpoint rejects the other's slugs with 400).
+    Families include natal blueprint, love signature, career & money, year ahead,
+    purpose & healing, creator's spotlight, Saturn return, dating/mating/relating,
+    inner moon, and monthly and yearly horoscopes. All seven branding fields are
+    required. Cover page: pass front_image for a custom cover, and
+    hide_frontpage_details=true to show only that image (the Western cover keeps its
+    background artwork). Returns reportId, htmlUrl, pdfUrl, statusUrl and status
+    ('processing'); the report is ready in about 10-30 seconds. Needs a DivineAPI
+    PDF-account key and token; a standard API key gets 401 'Invalid Bearer token'.
+    """
+    t = tier.strip().lower()
+    if t and t not in _WESTERN_TIERS:
+        raise ToolError(f"Error: Invalid tier '{tier}'. Must be one of: {', '.join(sorted(_WESTERN_TIERS))}")
+    _check_cover(front_image, hide_frontpage_details)
+    api_key, auth_token = _get_credentials(ctx)
+    payload = {
+        "report_type": report_type, "full_name": full_name,
+        "day": day, "month": month, "year": year,
+        "hour": hour, "min": min, "sec": sec, "gender": gender,
+        "place": place, "lat": lat, "lon": lon, "tzone": tzone,
+        "company_name": company_name, "company_url": company_url,
+        "company_email": company_email, "company_mobile": company_mobile,
+        "company_bio": company_bio, "footer_text": footer_text,
+        "logo_url": logo_url,
+    }
+    for key, value in (("tier", t), ("house_system", house_system.strip()), ("theme", theme.strip()),
+                       ("lan", lan.strip()), ("front_image", front_image.strip())):
+        if value:
+            payload[key] = value
+    if hide_frontpage_details:
+        payload["hide_frontpage_details"] = True
+    return await _call_reports_v2(payload, api_key, auth_token, path="/api/v1/western/reports/generate")
 
 
 # ══════════════════════════════════════════════
