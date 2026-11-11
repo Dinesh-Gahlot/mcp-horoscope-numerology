@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.0] - 2026-11-10
+
+### Added
+
+**`hide_frontpage_details` and `front_image` on the PDF report tools (DV-528, parent DV-523).** Some clients use a custom cover image, and the default front-page details (report name, client details, "Produced by") were printed over it. The new flag hides them so the cover shows only the image.
+
+- **Vedic V1 reports (9 tools):** Kundali Sampoorna, Ananta and Prakash, Match Making, Government Job, Foreign Travel, and Vedic Yearly 5/10/15. They take two new optional inputs, `front_image` and `hide_frontpage_details` (a boolean, default false), through the new `VedicPDFReportInput` / `VedicPDFMatchmakingInput` models. The V1 API takes the flag as `0`/`1`, so `true` is sent as `"1"` and `false` is not sent at all. Backend: Dinesh-Gahlot/pdf.divineapi.com#3, rendered by reports.divinestore.net. The Western and Numerology V1 PDF tools are unchanged, because their covers don't use the flag.
+- **`divine_pdf_reports_v2`:** gains `front_image` and `hide_frontpage_details`, sent as a JSON boolean (backend: white-label-v2). Its `report_type` examples are corrected: they listed `western-natal-report` and `numerology-report`, which this endpoint does not accept for those families.
+- **New tool `divine_pdf_western_reports_v2`:** wraps `POST /api/v1/western/reports/generate`, the separate Western Reports V2 endpoint. It takes a slug or a family code plus `tier`, the birth details, the seven branding fields, and optional `house_system`, `theme`, `lan`, `front_image` and `hide_frontpage_details`. `tier` is checked before the call. `_call_reports_v2` now takes the path as a parameter.
+
+`hide_frontpage_details=true` without `front_image` is rejected before the call. Reports V2 answers that combination with a 400, and on the V1 reports the flag has no effect without a cover image.
+
+**Credentials:** Reports V2 accepts only active DivineAPI PDF accounts (`user_type = 2`); a standard API key gets 401 "Invalid Bearer token". Both V2 tool descriptions now say so. The `divine_pdf_reports_v2` description also stops claiming Western and Numerology support: Western has its own tool, and Numerology V2 needs `fname`/`lname`/`mobile_number`, which this tool doesn't take.
+
+**Reports V2 errors:** Reports V2 errors (`{"error": "..."}`) now show the API's own text, e.g. "Reports V2 returned 400: front_image is required when hide_frontpage_details is true." A 401 "Invalid Bearer token" adds a hint that a PDF account is needed. Before, every 401 said "check your DIVINE_API_KEY", which pointed the wrong way here.
+
+Tool count: 65 -> 66.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added
