@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.0] - 2026-11-12
+
+### Added
+
+**New tool: `divine_chinese_horoscope_period` (DV-681).** It wraps the Chinese horoscope endpoints the backend added on 2026-11-10 (astroapi-3.divineapi.com commit db63ad2, served from astroapi-5):
+
+- `POST /api/v3/chinese-horoscope-weekly` (selector field `week`)
+- `POST /api/v3/chinese-horoscope-monthly` (`month`)
+- `POST /api/v3/chinese-horoscope-yearly` (`year`)
+
+One tool covers all three. `period` (`weekly`, `monthly` or `yearly`) picks the endpoint, and `selector` (`current`, `prev` or `next`, default `current`) is sent under that endpoint's own field name. It also takes a Chinese animal `sign`, `tzone` (which decides what "current" is) and `lan`. Sign, period and selector are lowercased and checked before the call. The API compares the selector case-sensitively, so `"Current"` would otherwise be rejected.
+
+The response has `sign`, the period covered (`week`: "dd Mon YYYY to dd Mon YYYY", `month`: "Month YYYY", `year`), and a `prediction` with `growth`, `health`, `wealth`, `career`, `love`, `family` and a `fortune` object. With a `lan` other than English, the text is translated. The endpoints use the same plan as the daily Chinese horoscope (api_id 26).
+
+`divine_chinese_horoscope` (daily) now points to the new tool for longer periods. The server instructions say the Chinese tools take an animal sign and that the period tool uses current/prev/next.
+
+Tool count: 66 -> 67.
+
 ## [1.7.0] - 2026-11-10
 
 ### Added

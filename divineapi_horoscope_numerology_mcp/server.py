@@ -181,7 +181,7 @@ if _TRANSPORT == "http":
 
 _SERVER_INSTRUCTIONS = """DivineAPI Horoscope, Tarot, Numerology, and PDF reports.
 
-Input conventions: zodiac signs are lowercase (e.g. aries). Daily horoscope and lifestyle tools use h_day = today, tomorrow, or yesterday; weekly, monthly, and yearly tools use current, prev, or next (not calendar dates). tzone is a decimal UTC offset; if you only have a place name, call divine_search_location to get its lat, lon and timezone. Numerology tools take full_name plus the birth date.
+Input conventions: zodiac signs are lowercase (e.g. aries); the Chinese horoscope tools take an animal sign (rat, ox, tiger, ...). Daily horoscope and lifestyle tools use h_day = today, tomorrow, or yesterday; weekly, monthly, and yearly tools (including divine_chinese_horoscope_period) use current, prev, or next (not calendar dates). tzone is a decimal UTC offset; if you only have a place name, call divine_search_location to get its lat, lon and timezone. Numerology tools take full_name plus the birth date.
 
 PDF reports: report tools require a report_code plus six company branding fields (company_url, logo_url, footer_text, company_name, company_email, company_bio); the natal PDF also needs a theme.
 
@@ -268,6 +268,14 @@ VALID_H_DAYS = {"today", "tomorrow", "yesterday"}
 # (verified live 2026-07-08; calendar values like '2026-03-16', '03' or '2026'
 # are rejected with "Please enter valid ... current, prev or next").
 VALID_PERIOD_SELECTORS = {"current", "prev", "next"}
+
+# Chinese weekly/monthly/yearly horoscope (astroapi-5 v3, added 2026-11-10 in the
+# astroapi-3.divineapi.com codebase): period -> (path, name of the selector field).
+CHINESE_PERIOD_ENDPOINTS = {
+    "weekly": ("/api/v3/chinese-horoscope-weekly", "week"),
+    "monthly": ("/api/v3/chinese-horoscope-monthly", "month"),
+    "yearly": ("/api/v3/chinese-horoscope-yearly", "year"),
+}
 
 # Calculation methods accepted by the core-numbers endpoint (verified live 2026-07-08).
 VALID_CORE_METHODS = {"general", "chaldean", "pythagorean"}
@@ -413,6 +421,42 @@ class ChineseHoroscopeInput(BaseModel):
         v = v.lower().strip()
         if v not in VALID_CHINESE_SIGNS:
             raise ValueError(f"Invalid Chinese zodiac sign '{v}'. Must be one of: {', '.join(sorted(VALID_CHINESE_SIGNS))}")
+        return v
+
+
+class ChinesePeriodHoroscopeInput(BaseModel):
+    """Input for the weekly/monthly/yearly Chinese horoscope. Requires a Chinese zodiac sign and a period."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+
+    sign: str = Field(..., description="Chinese zodiac sign: rat, ox, tiger, rabbit, dragon, snake, horse, goat, monkey, rooster, dog or pig")
+    period: str = Field(..., description="Which reading: 'weekly', 'monthly' or 'yearly'")
+    selector: str = Field(default="current", description="'current', 'prev' or 'next' week/month/year (default 'current'). Calendar dates, month numbers and years are not accepted by the API.")
+    tzone: str = Field(..., description="Timezone offset from UTC (e.g., '5.5'); decides which week/month/year is current")
+    lan: str = Field(default="en", description="Language code for response (default 'en')")
+
+    @field_validator("sign")
+    @classmethod
+    def validate_sign(cls, v: str) -> str:
+        v = v.lower().strip()
+        if v not in VALID_CHINESE_SIGNS:
+            raise ValueError(f"Invalid Chinese zodiac sign '{v}'. Must be one of: {', '.join(sorted(VALID_CHINESE_SIGNS))}")
+        return v
+
+    @field_validator("period")
+    @classmethod
+    def validate_period(cls, v: str) -> str:
+        v = v.lower().strip()
+        if v not in CHINESE_PERIOD_ENDPOINTS:
+            raise ValueError(f"Invalid period '{v}'. Must be one of: {', '.join(CHINESE_PERIOD_ENDPOINTS)}")
+        return v
+
+    @field_validator("selector")
+    @classmethod
+    def validate_selector(cls, v: str) -> str:
+        v = v.lower().strip()
+        if v not in VALID_PERIOD_SELECTORS:
+            raise ValueError(f"Invalid selector '{v}'. Must be one of: {', '.join(sorted(VALID_PERIOD_SELECTORS))}")
         return v
 
 
@@ -894,6 +938,16 @@ def _chinese_payload(params: ChineseHoroscopeInput) -> dict:
     }
 
 
+def _chinese_period_payload(params: ChinesePeriodHoroscopeInput) -> dict:
+    _, selector_field = CHINESE_PERIOD_ENDPOINTS[params.period]
+    return {
+        "sign": params.sign,
+        selector_field: params.selector,
+        "tzone": params.tzone,
+        "lan": params.lan,
+    }
+
+
 def _numerology_horoscope_payload(params: NumerologyHoroscopeInput) -> dict:
     return {
         "number": params.number,
@@ -1125,7 +1179,7 @@ def _numerology_pdf_payload(params: NumerologyPDFInput) -> dict:
 
 
 # ══════════════════════════════════════════════
-# HOROSCOPE TOOLS (6) — astroapi-5.divineapi.com
+# HOROSCOPE TOOLS (7) — astroapi-5.divineapi.com
 # ══════════════════════════════════════════════
 
 
@@ -1172,10 +1226,27 @@ async def divine_chinese_horoscope(params: ChineseHoroscopeInput, ctx: Context) 
     """Get Chinese zodiac horoscope for today, tomorrow, or yesterday.
 
     Returns predictions based on the Chinese zodiac animal sign including
-    luck, love, career, and health insights.
+    luck, love, career, and health insights. For a week, month or year,
+    use divine_chinese_horoscope_period.
     """
     api_key, auth_token = _get_credentials(ctx)
     return await _call_divine_api("/api/v3/chinese-horoscope", _chinese_payload(params), API_HOST_5, api_key=api_key, auth_token=auth_token)
+
+
+@mcp.tool(name="divine_chinese_horoscope_period", annotations=TOOL_ANNOTATIONS)
+async def divine_chinese_horoscope_period(params: ChinesePeriodHoroscopeInput, ctx: Context) -> str:
+    """Get the weekly, monthly or yearly Chinese zodiac horoscope for an animal sign.
+
+    period picks the reading ('weekly', 'monthly', 'yearly') and selector picks
+    the current, previous or next one. Returns the sign, the period covered
+    (e.g. "week": "10 Nov 2026 to 16 Nov 2026", "month": "November 2026",
+    "year": 2026) and a prediction with growth, health, wealth, career, love,
+    family and fortune (lucky colours, numbers, directions and so on).
+    For today, tomorrow or yesterday use divine_chinese_horoscope.
+    """
+    api_key, auth_token = _get_credentials(ctx)
+    path, _ = CHINESE_PERIOD_ENDPOINTS[params.period]
+    return await _call_divine_api(path, _chinese_period_payload(params), API_HOST_5, api_key=api_key, auth_token=auth_token)
 
 
 @mcp.tool(name="divine_numerology_horoscope", annotations=TOOL_ANNOTATIONS)
