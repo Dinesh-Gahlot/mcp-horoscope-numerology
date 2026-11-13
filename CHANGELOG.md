@@ -12,7 +12,9 @@
 
 One tool covers all three. `period` (`weekly`, `monthly` or `yearly`) picks the endpoint, and `selector` (`current`, `prev` or `next`, default `current`) is sent under that endpoint's own field name. It also takes a Chinese animal `sign`, `tzone` (which decides what "current" is) and `lan`. Sign, period and selector are lowercased and checked before the call. The API compares the selector case-sensitively, so `"Current"` would otherwise be rejected.
 
-The response has `sign`, the period covered (`week`: "dd Mon YYYY to dd Mon YYYY", `month`: "Month YYYY", `year`), and a `prediction` with `growth`, `health`, `wealth`, `career`, `love`, `family` and a `fortune` object. With a `lan` other than English, the text is translated. The endpoints use the same plan as the daily Chinese horoscope (api_id 26).
+The response has `sign`, the period covered (`week`: "08 Nov 2026 to 14 Nov 2026", `month`: "November 2026", `year`: "2026"), and a `prediction`. In it, `growth`, `health`, `wealth`, `career`, `love` and `family` are text, and `fortune` is a list of "Label : text" lines: lucky numbers, lucky alphabets, a cosmic tip, and tips for singles and for couples. The endpoints use the same plan as the daily Chinese horoscope (api_id 26). Verified live on 2026-11-13 for current, prev and next of all three periods.
+
+**English only on this host.** astroapi-5 rejects any other `lan` with "Translation is not supported on this domain. Please use https://astroapi-5-translator.divineapi.com/…", and the translator host also needs a translator plan on the account. The same applies to the other horoscope tools. Routing translated requests there is a separate DV-681 item; the `lan` field description says so.
 
 `divine_chinese_horoscope` (daily) now points to the new tool for longer periods. The server instructions say the Chinese tools take an animal sign and that the period tool uses current/prev/next.
 

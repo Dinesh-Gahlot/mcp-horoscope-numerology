@@ -433,7 +433,7 @@ class ChinesePeriodHoroscopeInput(BaseModel):
     period: str = Field(..., description="Which reading: 'weekly', 'monthly' or 'yearly'")
     selector: str = Field(default="current", description="'current', 'prev' or 'next' week/month/year (default 'current'). Calendar dates, month numbers and years are not accepted by the API.")
     tzone: str = Field(..., description="Timezone offset from UTC (e.g., '5.5'); decides which week/month/year is current")
-    lan: str = Field(default="en", description="Language code for response (default 'en')")
+    lan: str = Field(default="en", description="Language code (default 'en'). This host serves English only: any other language is rejected with a pointer to astroapi-5-translator, which also needs a translator plan.")
 
     @field_validator("sign")
     @classmethod
@@ -1239,9 +1239,10 @@ async def divine_chinese_horoscope_period(params: ChinesePeriodHoroscopeInput, c
 
     period picks the reading ('weekly', 'monthly', 'yearly') and selector picks
     the current, previous or next one. Returns the sign, the period covered
-    (e.g. "week": "10 Nov 2026 to 16 Nov 2026", "month": "November 2026",
-    "year": 2026) and a prediction with growth, health, wealth, career, love,
-    family and fortune (lucky colours, numbers, directions and so on).
+    (e.g. "week": "08 Nov 2026 to 14 Nov 2026", "month": "November 2026",
+    "year": "2026") and a prediction: growth, health, wealth, career, love and
+    family as text, plus fortune, a list of "Label : text" lines (lucky numbers,
+    lucky alphabets, a cosmic tip, tips for singles and for couples).
     For today, tomorrow or yesterday use divine_chinese_horoscope.
     """
     api_key, auth_token = _get_credentials(ctx)
